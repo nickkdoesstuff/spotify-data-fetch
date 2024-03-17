@@ -31,9 +31,17 @@ model spotify_data_song_history {
   spotify_id         String
   title              String
   artist             String
+  artist_id          String
+  artist_art         String
   art                String
   played_by          String
   played_at          DateTime           @db.Timestamptz(6)
   end_at             DateTime           @db.Timestamptz(6)
   spotify_data_users spotify_data_users @relation(fields: [played_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "spotify_data_song_history_played_by_spotify_data_users_id_fk")
+}
+
+model spotify_data_artist_images {
+  id                Int    @id @default(autoincrement())
+  spotify_artist_id String
+  image             String
 }

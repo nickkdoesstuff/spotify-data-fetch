@@ -29,12 +29,13 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
             if (lastPlayed.length > 0) {
                 after = lastPlayed[0].end_at.getTime();
             }
-            let recentlyPlayedRequest = yield fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=30${after != null ? '&after=' + after : ''}`, {
+            let recentlyPlayedRequest = yield fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=50${after != null ? '&after=' + after : ''}`, {
                 headers: {
                     'Authorization': `Bearer ${user.access_token}`,
                     'Content-Type': 'application/json'
                 },
             });
+            let accessToken = user.access_token;
             if (recentlyPlayedRequest.status != 200) {
                 const authString = btoa(process.env.CLIENT_ID + ':' + process.env.CLIENT_SECRET);
                 const refreshTokenRequest = yield fetch("https://accounts.spotify.com/api/token", {
@@ -49,6 +50,7 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
                     })
                 });
                 const refreshTokenResponse = yield refreshTokenRequest.json();
+                accessToken = refreshTokenResponse.access_token;
                 yield prisma.spotify_data_users.update({
                     where: {
                         id: user.id
@@ -58,27 +60,79 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
                         access_token: refreshTokenResponse.access_token
                     }
                 });
-                recentlyPlayedRequest = yield fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=30&after=${after}`, {
+                recentlyPlayedRequest = yield fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=50&after=${after}`, {
                     headers: {
                         'Authorization': `Bearer ${refreshTokenResponse.access_token}`
                     },
                 });
             }
+            function getArtistProfilePicture(artistId, accessToken) {
+                return __awaiter(this, void 0, void 0, function* () {
+                    const checkImage = yield prisma.spotify_data_artist_images.findFirst({
+                        where: {
+                            spotify_artist_id: artistId
+                        }
+                    });
+                    if (checkImage) {
+                        return checkImage.image;
+                    }
+                    const artistRequest = yield fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`
+                        }
+                    });
+                    if (artistRequest.status != 200) {
+                        return "";
+                    }
+                    const artistResponse = yield artistRequest.json();
+                    if (!artistResponse.images) {
+                        return "";
+                    }
+                    if (artistResponse.images.length == 0) {
+                        return "";
+                    }
+                    yield prisma.spotify_data_artist_images.create({
+                        data: {
+                            spotify_artist_id: artistId,
+                            image: artistResponse.images[0].url
+                        }
+                    });
+                    return artistResponse.images[0].url;
+                });
+            }
             const recentSongResponse = yield recentlyPlayedRequest.json();
             if (recentSongResponse.items.length > 0) {
-                yield prisma.spotify_data_song_history.createMany({
-                    data: recentSongResponse.items.map((track) => {
-                        return {
-                            title: track.track.name,
-                            artist: track.track.artists.map((artist) => artist.name).join(", "),
-                            art: track.track.album.images[0].url,
-                            spotify_id: track.track.id,
+                // await prisma.spotify_data_song_history.createMany({
+                //     data: recentSongResponse.items.map((track) => {
+                //         return {
+                //             title: track.track.name,
+                //             artist: track.track.artists.map((artist) => artist.name).join(", "),
+                //             artist_id: track.track.artists[0]!.id,
+                //             artist_art: getArtistProfilePicture(track.track.artists[0]!.id, accessToken!),
+                //             art: track.track.album.images[0].url,
+                //             spotify_id: track.track.id,
+                //             played_by: user.id,
+                //             end_at: new Date(track.played_at),
+                //             played_at:  new Date(new Date(track.played_at).getTime() - track.track.duration_ms),
+                //         }
+                //     })
+                // })
+                for (const song of recentSongResponse.items) {
+                    const artistPicture = yield getArtistProfilePicture(song.track.artists[0].id, accessToken);
+                    yield prisma.spotify_data_song_history.create({
+                        data: {
+                            title: song.track.name,
+                            artist: song.track.artists.map((artist) => artist.name).join(", "),
+                            artist_id: song.track.artists[0].id,
+                            artist_art: artistPicture,
+                            art: song.track.album.images[0].url,
+                            spotify_id: song.track.id,
                             played_by: user.id,
-                            end_at: new Date(track.played_at),
-                            played_at: new Date(new Date(track.played_at).getTime() - track.track.duration_ms),
-                        };
-                    })
-                });
+                            end_at: new Date(song.played_at),
+                            played_at: new Date(new Date(song.played_at).getTime() - song.track.duration_ms),
+                        }
+                    });
+                }
             }
             console.log(`updated history for ${user.username} (+${recentSongResponse.items.length})`);
         }
