@@ -65,19 +65,21 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
                 });
             }
             const recentSongResponse = yield recentlyPlayedRequest.json();
-            yield prisma.spotify_data_song_history.createMany({
-                data: recentSongResponse.items.map((track) => {
-                    return {
-                        title: track.track.name,
-                        artist: track.track.artists.map((artist) => artist.name).join(", "),
-                        art: track.track.album.images[0].url,
-                        spotify_id: track.track.id,
-                        played_by: user.id,
-                        end_at: new Date(track.played_at),
-                        played_at: new Date(new Date(track.played_at).getTime() - track.track.duration_ms),
-                    };
-                })
-            });
+            if (recentSongResponse.items.length > 0) {
+                yield prisma.spotify_data_song_history.createMany({
+                    data: recentSongResponse.items.map((track) => {
+                        return {
+                            title: track.track.name,
+                            artist: track.track.artists.map((artist) => artist.name).join(", "),
+                            art: track.track.album.images[0].url,
+                            spotify_id: track.track.id,
+                            played_by: user.id,
+                            end_at: new Date(track.played_at),
+                            played_at: new Date(new Date(track.played_at).getTime() - track.track.duration_ms),
+                        };
+                    })
+                });
+            }
             console.log(`updated history for ${user.username} (+${recentSongResponse.items.length})`);
         }
         catch (error) {
