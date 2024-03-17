@@ -68,7 +68,6 @@ const job = new CronJob('* * * * *', async () => {
             }
 
             const recentSongResponse: recentSongResponse = await recentlyPlayedRequest.json()
-            console.log(recentSongResponse)
             await prisma.spotify_data_song_history.createMany({
                 data: recentSongResponse.items.map((track) => {
                     return {
@@ -82,7 +81,7 @@ const job = new CronJob('* * * * *', async () => {
                     }
                 })
             })
-            console.log(`updated history for ${user.username}`)
+            console.log(`updated history for ${user.username} (+${recentSongResponse.items.length})`)
 
         } catch (error) {
             console.log('ERROR: ' + error)

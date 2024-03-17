@@ -68,7 +68,6 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
                 });
             }
             const recentSongResponse = yield recentlyPlayedRequest.json();
-            console.log(recentSongResponse);
             yield prisma.spotify_data_song_history.createMany({
                 data: recentSongResponse.items.map((track) => {
                     return {
@@ -82,7 +81,7 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
                     };
                 })
             });
-            console.log(`updated history for ${user.username}`);
+            console.log(`updated history for ${user.username} (+${recentSongResponse.items.length})`);
         }
         catch (error) {
             console.log('ERROR: ' + error);
