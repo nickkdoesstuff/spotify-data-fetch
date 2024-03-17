@@ -30,11 +30,8 @@ const job = new CronJob('* * * * *', async () => {
                     'Content-Type': 'application/json'
                 },
             })
-
-            console.log(recentlyPlayedRequest.status)
     
             if(recentlyPlayedRequest.status != 200) {
-                console.log('request access token')
                 const authString = btoa(process.env.CLIENT_ID! + ':' + process.env.CLIENT_SECRET!)
                 const refreshTokenRequest = await fetch("https://accounts.spotify.com/api/token", {
                     method: 'POST',
@@ -48,7 +45,6 @@ const job = new CronJob('* * * * *', async () => {
                     })
                 })
                 const refreshTokenResponse: refreshTokenResponse = await refreshTokenRequest.json()
-                console.log(refreshTokenResponse)
                 await prisma.spotify_data_users.update({
                     where: {
                         id: user.id
