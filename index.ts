@@ -3,6 +3,48 @@ import { CronJob } from 'cron'
 
 const prisma = new PrismaClient()
 
+async function getArtistProfilePicture(artistId: string, accessToken: string) {
+
+    const checkImage = await prisma.spotify_data_artist_images.findFirst({
+        where: {
+            spotify_artist_id: artistId
+        }
+    })
+
+    if(checkImage) {
+        return checkImage.image
+    }
+
+    const artistRequest = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
+        headers: {
+            'Authorization': `Bearer ${accessToken}`
+        }
+    })
+
+    if(artistRequest.status != 200) {
+        return ""
+    }
+
+    const artistResponse: artistResponse = await artistRequest.json()
+
+    if(!artistResponse.images) {
+        return ""
+    }
+
+    if(artistResponse.images.length == 0) {
+        return ""
+    }
+
+    await prisma.spotify_data_artist_images.create({
+        data: {
+            spotify_artist_id: artistId,
+            image: artistResponse.images[0].url
+        }
+    })
+
+    return artistResponse.images[0].url
+}
+
 const job = new CronJob('* * * * *', async () => {
     const users = await prisma.spotify_data_users.findMany({})
     for (const user of users) {
@@ -22,7 +64,6 @@ const job = new CronJob('* * * * *', async () => {
             if (lastPlayed.length > 0) {
                 after = lastPlayed[0].end_at!.getTime()
             }
-
 
             let recentlyPlayedRequest = await fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=50${after != null ? '&after=' + after : ''}`, {
                 headers: {
@@ -66,47 +107,7 @@ const job = new CronJob('* * * * *', async () => {
 
             }
 
-            async function getArtistProfilePicture(artistId: string, accessToken: string) {
-
-                const checkImage = await prisma.spotify_data_artist_images.findFirst({
-                    where: {
-                        spotify_artist_id: artistId
-                    }
-                })
-
-                if(checkImage) {
-                    return checkImage.image
-                }
-
-                const artistRequest = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
-                })
-
-                if(artistRequest.status != 200) {
-                    return ""
-                }
-
-                const artistResponse: artistResponse = await artistRequest.json()
-
-                if(!artistResponse.images) {
-                    return ""
-                }
-
-                if(artistResponse.images.length == 0) {
-                    return ""
-                }
-
-                await prisma.spotify_data_artist_images.create({
-                    data: {
-                        spotify_artist_id: artistId,
-                        image: artistResponse.images[0].url
-                    }
-                })
-
-                return artistResponse.images[0].url
-            }
+            
 
             const recentSongResponse: recentSongResponse = await recentlyPlayedRequest.json()
             if(recentSongResponse.items.length > 0) {

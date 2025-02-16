@@ -12,6 +12,40 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const client_1 = require("@prisma/client");
 const cron_1 = require("cron");
 const prisma = new client_1.PrismaClient();
+function getArtistProfilePicture(artistId, accessToken) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const checkImage = yield prisma.spotify_data_artist_images.findFirst({
+            where: {
+                spotify_artist_id: artistId
+            }
+        });
+        if (checkImage) {
+            return checkImage.image;
+        }
+        const artistRequest = yield fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+        if (artistRequest.status != 200) {
+            return "";
+        }
+        const artistResponse = yield artistRequest.json();
+        if (!artistResponse.images) {
+            return "";
+        }
+        if (artistResponse.images.length == 0) {
+            return "";
+        }
+        yield prisma.spotify_data_artist_images.create({
+            data: {
+                spotify_artist_id: artistId,
+                image: artistResponse.images[0].url
+            }
+        });
+        return artistResponse.images[0].url;
+    });
+}
 const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void 0, function* () {
     const users = yield prisma.spotify_data_users.findMany({});
     for (const user of users) {
@@ -64,40 +98,6 @@ const job = new cron_1.CronJob('* * * * *', () => __awaiter(void 0, void 0, void
                     headers: {
                         'Authorization': `Bearer ${refreshTokenResponse.access_token}`
                     },
-                });
-            }
-            function getArtistProfilePicture(artistId, accessToken) {
-                return __awaiter(this, void 0, void 0, function* () {
-                    const checkImage = yield prisma.spotify_data_artist_images.findFirst({
-                        where: {
-                            spotify_artist_id: artistId
-                        }
-                    });
-                    if (checkImage) {
-                        return checkImage.image;
-                    }
-                    const artistRequest = yield fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`
-                        }
-                    });
-                    if (artistRequest.status != 200) {
-                        return "";
-                    }
-                    const artistResponse = yield artistRequest.json();
-                    if (!artistResponse.images) {
-                        return "";
-                    }
-                    if (artistResponse.images.length == 0) {
-                        return "";
-                    }
-                    yield prisma.spotify_data_artist_images.create({
-                        data: {
-                            spotify_artist_id: artistId,
-                            image: artistResponse.images[0].url
-                        }
-                    });
-                    return artistResponse.images[0].url;
                 });
             }
             const recentSongResponse = yield recentlyPlayedRequest.json();
